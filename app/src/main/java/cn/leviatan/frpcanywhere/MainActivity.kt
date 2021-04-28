@@ -13,11 +13,16 @@ import androidx.core.app.ActivityCompat
 import cn.leviatan.frpcanywhere.ui.theme.FrpcAnywhereTheme
 import cn.leviatan.frpcanywhere.utils.Storage
 import frpclib.Frpclib
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStreamReader
 import java.lang.Exception
 import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
+//  TODO: Replace with Array, check log lines
+    private var frpcLog = ""
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -45,56 +50,47 @@ class MainActivity : ComponentActivity() {
         setContent {
             FrpcAnywhereTheme {
                 Surface(color = MaterialTheme.colors.background) {
-                    TextTest("Frpc Anywhere")
+                    LogArea()
                 }
             }
         }
     }
 
-    fun runFrpc() {
-        val storage = Storage()
-
-        val confFile = File(storage.confFilePath(this))
-        if (!confFile.exists()) {
-            File(storage.rootFilesDir(this), storage.confFileName()).printWriter()
-        }
+    private fun runFrpc() {
+        val storage = Storage(this)
 
         try {
-            Frpclib.run(storage.confFilePath(this))
+            Frpclib.run(storage.confFilePath())
         } catch (e: Exception) {
+//          TODO: Check exception type
+//          TODO: Show error message
             e.printStackTrace()
         }
     }
 
-    fun runShowLog() {
-//                FIXME: filter log "--------- beginning of xxx"
-//                TODO: Make sure the log is complete
+    private fun runShowLog() {
+        val logcatCmd = arrayOf("logcat", "GoLog:*", "*:S", "-v", "raw")
+        val buf = BufferedReader(InputStreamReader(Runtime.getRuntime().exec(logcatCmd).inputStream))
+        var line = ""
+
+        for (i in 1..3) {
+            buf.readLine()
+        }
+
         while(true) {
-            val running = arrayOf("logcat", "GoLog:*", "*:S")
-            val exec = Runtime.getRuntime().exec(running)
-            val inputStream = exec.inputStream
-            val buf = ByteArray(4096)
-            while (-1 != inputStream.read(buf)) {
-                println("================= Start =================")
-                println(byteToStr(buf))
-                println("================= Finish =================")
-            }
+            if (buf.readLine().also { bufLine: String? ->
+                    if (bufLine != null) {
+                        line = bufLine
+                    }
+                } != null)
+                line = line.replace("\\x1b\\[[0-9;]*m".toRegex(), "")
+                frpcLog = "$line\n"
         }
     }
 
-    fun byteToStr(buffer: ByteArray): String? {
-            var length = 0
-            for (i in buffer.indices) {
-                if ((buffer[i].toInt() and 0xFF) == 0) {
-                    length = i
-                    break
-                }
-            }
-            return String(buffer, 0, length, Charsets.UTF_8)
+    @Composable
+    fun LogArea() {
+//      TODO: Dynamic change
+        Text(text = frpcLog)
     }
-}
-
-@Composable
-fun TextTest(name: String) {
-    Text(text = name)
 }
