@@ -5,23 +5,25 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
 import cn.leviatan.frpcanywhere.ui.theme.FrpcAnywhereTheme
 import cn.leviatan.frpcanywhere.utils.Storage
 import frpclib.Frpclib
 import java.io.BufferedReader
-import java.io.File
 import java.io.InputStreamReader
 import java.lang.Exception
+import java.text.SimpleDateFormat
+import java.util.*
 import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
-//  TODO: Replace with Array, check log lines
-    private var frpcLog = ""
+    private var logStr by mutableStateOf(arrayListOf(""))
+    private var maxLogLines = 5
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,28 +71,35 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun runShowLog() {
-        val logcatCmd = arrayOf("logcat", "GoLog:*", "*:S", "-v", "raw")
+        val startTime = SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(Date())
+        println("============================================================ $startTime")
+        val logcatCmd = arrayOf("logcat", "GoLog:I", "*:S", "-v", "raw", "-t", startTime)
         val buf = BufferedReader(InputStreamReader(Runtime.getRuntime().exec(logcatCmd).inputStream))
-        var line = ""
+        var bufLine: String?
 
         for (i in 1..3) {
             buf.readLine()
         }
 
         while(true) {
-            if (buf.readLine().also { bufLine: String? ->
-                    if (bufLine != null) {
-                        line = bufLine
-                    }
-                } != null)
-                line = line.replace("\\x1b\\[[0-9;]*m".toRegex(), "")
-                frpcLog = "$line\n"
+//            FIXME: buf.readLine() always null
+            if (buf.readLine().also { bufLine = it } != null) {
+//                if (logStr.size == maxLogLines) {
+//                    logStr.removeFirst()
+//                }
+
+                logStr.add(bufLine!!.replace("\\x1b\\[[0-9;]*m".toRegex(), "") + "\n")
+                println("=================================================== ${logStr.last()}")
+            }
         }
     }
 
     @Composable
     fun LogArea() {
-//      TODO: Dynamic change
-        Text(text = frpcLog)
+        Column {
+            logStr.forEach {
+                Text(text = it)
+            }
+        }
     }
 }
