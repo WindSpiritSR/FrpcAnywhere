@@ -1,30 +1,30 @@
 package cn.leviatan.frpcanywhere
 
 import android.Manifest
+import android.R.attr
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.FileObserver
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
-import androidx.compose.material.TextField
 import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import cn.leviatan.frpcanywhere.ui.theme.FrpcAnywhereTheme
 import cn.leviatan.frpcanywhere.utils.Storage
 import frpclib.Frpclib
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.lang.Exception
-import java.text.SimpleDateFormat
-import java.util.*
 import kotlin.concurrent.thread
+import android.R.attr.path
+
+
+
 
 class MainActivity : ComponentActivity() {
-    private var logStrArray = arrayListOf<String>()
+    private lateinit var logFileWatcher: LogFileObserver
     private var logStr by mutableStateOf("")
     private var maxLogLines = 5
 
@@ -32,7 +32,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val permissionList = arrayOf(
-            Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
             Manifest.permission.INTERNET
         )
@@ -44,18 +43,29 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        thread(name = "frpc") {
-            runFrpc()
-        }
+        var startBtnEnable by mutableStateOf(true)
+        var startBtnText by mutableStateOf("Start")
 
-        thread(name = "showLog") {
-            runShowLog()
-        }
+        runLogs()
 
         setContent {
             FrpcAnywhereTheme {
-                Surface(color = MaterialTheme.colors.background) {
-                    LogArea()
+                Surface {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(15.dp)) {
+                        Button(onClick = {
+                            startBtnEnable = false
+                            startBtnText = "Stop"
+                            thread(name = "frpc") {
+                                runFrpc()
+                            }
+                        },
+                        content = { Text(text = startBtnText)})
+
+                        LogArea()
+                    }
                 }
             }
         }
@@ -63,7 +73,6 @@ class MainActivity : ComponentActivity() {
 
     private fun runFrpc() {
         val storage = Storage(this)
-
         try {
             Frpclib.run(storage.confFilePath())
         } catch (e: Exception) {
@@ -73,48 +82,65 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun runShowLog() {
-        val startTime = SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(Date())
-        println("============================================================ Catch Logcat at [$startTime]")
-        val logcatCmd = arrayOf("logcat", "GoLog:I", "-s", "-v", "raw")
-        val buf = BufferedReader(InputStreamReader(Runtime.getRuntime().exec(logcatCmd).inputStream))
-        var bufLine: String?
-
-        for (i in 1..3) {
-            buf.readLine()
-        }
-
-        while(true) {
-            if (buf.readLine().also { bufLine = it } != null) {
-//                FIXME: Only the last log???
-                logStr = bufLine!!.replace("\\x1b\\[[0-9;]*m".toRegex(), "")
-                println("=================================================== Log: [$logStr]")
+    private fun runLogs() {
+        val storage = Storage(this)
+        var logFileEvents: ArrayList<Int>
+        logFileWatcher = LogFileObserver(storage.confFilePath())
+        logFileWatcher.startWatching()
+        thread(name = "logs") {
+            while (true) {
+                logFileEvents = waitForEvent(logFileWatcher)
+                if (logFileEvents.size > 0) {
+                    for (event in logFileEvents) {
+                        when(event) {
+                            FileObserver.MODIFY -> {
+//                                TODO: Read and check log file
+                                println("==================== Log File MODIFY ====================")
+                            }
+                        }
+                    }
+                }
+                Thread.sleep(100)
             }
         }
     }
 
     @Composable
-    fun LogArea() {
+    private fun LogArea() {
         var textFeildStr = ""
         Column {
-            if (logStrArray.size == maxLogLines) {
-                logStrArray.removeFirst()
-            }
-            logStrArray.add(logStr)
-            logStrArray.forEach {
-                textFeildStr += it + "\n"
-            }
-
-            textFeildStr = textFeildStr.dropLast(1)
-
             OutlinedTextField(
                 value = textFeildStr,
                 onValueChange = {},
                 label = { Text("Log") },
                 readOnly = true,
                 maxLines = 5,
-                enabled = false
+                enabled = false,
+                modifier = Modifier.fillMaxWidth()
             )
+        }
+    }
+
+    private fun waitForEvent(logFileObserver: LogFileObserver): ArrayList<Int> {
+        synchronized(logFileObserver) {
+            return logFileObserver.getEvents()
+        }
+    }
+
+    private class LogFileObserver(path: String) : FileObserver(path) {
+        private var observerEvents = ArrayList<Int>()
+
+        @Synchronized
+        override fun onEvent(event: Int, path: String?) {
+            observerEvents.add(event)
+        }
+
+        @Synchronized
+        fun getEvents(): ArrayList<Int> {
+            val event = ArrayList<Int>()
+            event.addAll(observerEvents)
+            observerEvents.clear()
+            return event
         }
     }
 }

@@ -5,11 +5,13 @@ import java.io.File
 
 class Storage (private val context: Context){
     private val configFileName = "frpc.ini"
+    private val configFile: File
 
     init {
-        val confFile = File(confFilePath())
-        if (!confFile.exists()) {
+        configFile = File(confFilePath())
+        if (!confFile().exists()) {
             File(rootFilesDir(), confFileName()).printWriter()
+//            TODO: Build basic config
         }
     }
 
@@ -18,11 +20,16 @@ class Storage (private val context: Context){
     }
 
     fun rootFilesDir(): String? {
-        return if (true) externalFilesDir() else context.filesDir.absolutePath
+        return externalFilesDir()
+//        return context.filesDir.absolutePath
     }
 
     fun confFileName(): String {
         return configFileName
+    }
+
+    fun confFile(): File {
+        return configFile
     }
 
     fun confFilePath(): String {
