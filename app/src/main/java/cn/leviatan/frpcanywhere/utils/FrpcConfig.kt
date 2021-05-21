@@ -1,5 +1,8 @@
 package cn.leviatan.frpcanywhere.utils
 
+import cn.leviatan.frpcanywhere.model.Value
+
 class FrpcConfig {
-//    TODO: Manage config file here
+    fun test() {
+    }
 }

@@ -1,7 +1,6 @@
 package cn.leviatan.frpcanywhere
 
 import android.Manifest
-import android.R.attr
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.FileObserver
@@ -18,15 +17,11 @@ import cn.leviatan.frpcanywhere.utils.Storage
 import frpclib.Frpclib
 import java.lang.Exception
 import kotlin.concurrent.thread
-import android.R.attr.path
-
-
-
 
 class MainActivity : ComponentActivity() {
     private lateinit var logFileWatcher: LogFileObserver
     private var logStr by mutableStateOf("")
-    private var maxLogLines = 5
+    private val maxLogLines = 5
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
